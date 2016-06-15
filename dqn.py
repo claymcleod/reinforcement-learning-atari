@@ -3,6 +3,7 @@
 # TODO(clay): implement dueling Q-networks
 # TODO(clay): integrate flags
 
+import os
 import gym
 import tflearn
 import numpy as np
@@ -174,7 +175,7 @@ class DQN(object):
 
         self._update_q_gradients(np.array(s_t_all)[0], np.array(r_t_all)[0], np.array(s_t1_all)[0], np.array(a_t_selected_all)[0])
 
-    def _new_episode(self, frames, verbose=True):
+    def _new_episode(self, frames, verbose=True, render=True):
         s_t = self._get_initial_state()
         done = False
         iteration = frames
@@ -198,6 +199,8 @@ class DQN(object):
 
             if verbose:
                 cost += self._get_cost(s_t, r_t, s_t1, a_t_selected)
+
+            if render:
                 self.env.render()
 
             score += r_t
@@ -215,10 +218,15 @@ class DQN(object):
     def setup(self):
         self._build_Q_network()
         self._build_training_graph()
-        self.session = tf.Session()
+        if os.environ["TF_THREADS"]:
+            print("Using {} threads...".format(os.environ["TF_THREADS"]))
+            self.session = tf.Session(config=tf.ConfigProto(
+                           intra_op_parallelism_threads=int(os.environ["TF_THREADS"])))
+        else:
+            self.session = tf.Session()
         self.session.run(tf.initialize_all_variables())
 
-    def train(self, save_model_every=1, verbose=True):
+    def train(self, save_model_every=1, verbose=True, render=True):
         self.setup()
         self.replay_memory = deque()
 
@@ -235,7 +243,7 @@ class DQN(object):
         frames = 0
 
         while True:
-            avg_cost, score, frames = self._new_episode(frames, verbose=verbose)
+            avg_cost, score, frames = self._new_episode(frames, verbose=verbose, render=render)
             output = "#%d" % (num_episodes)
             if verbose:
                 output = "#%d | Avg cost: %0.2f | Score: %d | Espilon: %0.3f | Replay Size: %d" % (num_episodes, avg_cost, score, self._get_epsilon(frames), len(self.replay_memory))

@@ -1,5 +1,3 @@
-import gym
-import matplotlib.pyplot as plt
 from skimage.color import rgb2gray
 from skimage.transform import resize
 
@@ -30,6 +28,9 @@ def _preprocess_img(observation_t, env_name):
     return resize(rgb2gray(observation_t), dimensions["resize_to"])[dimensions["start"]:dimensions["stop"], :]
 
 if __name__ == "__main__":
+    import gym
+    import matplotlib.pyplot as plt
+
     env = gym.make(TEST_ENV_NAME)
     x_t = env.reset()
     for i in range(50):
