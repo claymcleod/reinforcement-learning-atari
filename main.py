@@ -1,5 +1,5 @@
 import dqn
 
 
-dqn = dqn.DQN("MsPacman-v0")
+dqn = dqn.DQN("SpaceInvaders-v0")
 dqn.train()
