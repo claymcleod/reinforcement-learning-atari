@@ -1,7 +1,7 @@
 from skimage.color import rgb2gray
 from skimage.transform import resize
 
-TEST_ENV_NAME = "Pong-v0"
+TEST_ENV_NAME = "Breakout-v0"
 
 def dimensions_for_env(env_name):
     if env_name == "MsPacman-v0":
@@ -27,6 +27,14 @@ def dimensions_for_env(env_name):
             'network_in_y': 84,
             'start': 13,
             'stop': 97
+        }
+    elif env_name == "Breakout-v0":
+        return {
+            'resize_to': (110, 84),
+            'network_in_x': 84,
+            'network_in_y': 110,
+            'start': 0,
+            'stop': 110
         }
     else:
         raise RuntimeError("Dimensions not implemented for {}".format(env_name))

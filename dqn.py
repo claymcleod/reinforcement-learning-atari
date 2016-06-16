@@ -17,9 +17,9 @@ from skimage.transform import resize
 
 # Extended data table 1, appendix
 tf.app.flags.DEFINE_integer('minibatch_size', 32, 'Number of training cases over which gradient descent (SGD) update is computed.')
-tf.app.flags.DEFINE_integer('replay_memory_size', 100, 'SGD updates are sampled from this number of most recent frames.')
+tf.app.flags.DEFINE_integer('replay_memory_size', 80000, 'SGD updates are sampled from this number of most recent frames.')
 tf.app.flags.DEFINE_integer('agent_history_length', 4, 'The number of most recent frames experienced by the agent that are given as input to the Q network.')
-tf.app.flags.DEFINE_integer('target_network_update_frequency', 100, 'The frequency (measured in the number of parameter updates) with which the target network is updated (this corresponds to the parameter C from Algorithm 1.)')
+tf.app.flags.DEFINE_integer('target_network_update_frequency', 10000, 'The frequency (measured in the number of parameter updates) with which the target network is updated (this corresponds to the parameter C from Algorithm 1.)')
 tf.app.flags.DEFINE_float('discount_factor', 0.99, 'Discount factor gamma used in the Q-learning update.')
 tf.app.flags.DEFINE_integer('action_repeat', 4, 'Repeat each acton selected by the agent this many times. Using a value of 4 results in the agent seeing only every 4th input frame.')
 tf.app.flags.DEFINE_integer('update_frequency', 4, 'The number of actions selected by the agent between successive SGD updates. Using a value of 4 results in the agent selecting 4 actions between each pair of successive updates.')
@@ -27,10 +27,10 @@ tf.app.flags.DEFINE_float('learning_rate', 0.000025, 'The learning rate used by 
 tf.app.flags.DEFINE_float('gradient_momentum', 0.95, 'Gradient momentum used by RMSProp.')
 tf.app.flags.DEFINE_float('squared_gradient_momentum', 0.95, 'Squared gradient (denominator) momentum used by RMSProp.')
 tf.app.flags.DEFINE_float('min_squared_gradient', 0.01, 'Constant added to the squared gradient in the denominator of the RMSProp update.')
-tf.app.flags.DEFINE_float('initial_exploration', 0.1, 'Initial value of the epsilon in the epsilon-greedy exploration.')
+tf.app.flags.DEFINE_float('initial_exploration', 1.0, 'Initial value of the epsilon in the epsilon-greedy exploration.')
 tf.app.flags.DEFINE_float('final_exploration', 0.1, 'Final value of the epsilon in the epsilon-greedy exploration.')
-tf.app.flags.DEFINE_integer('final_exploration_frame', 100000, 'The number of frames over which the initial value of epsilon is linearly annealed to its final value.')
-tf.app.flags.DEFINE_integer('replay_start_size', 50, 'A uniform random policy is run for this number of frames before learning starts and the resulting experience is used to populate the replay memory.')
+tf.app.flags.DEFINE_integer('final_exploration_frame', 50000, 'The number of frames over which the initial value of epsilon is linearly annealed to its final value.')
+tf.app.flags.DEFINE_integer('replay_start_size', 25000, 'A uniform random policy is run for this number of frames before learning starts and the resulting experience is used to populate the replay memory.')
 tf.app.flags.DEFINE_integer('no_op_max', 30, 'Maximum number of "do nothing" actions to be performed by the agent at the start of an epsiode.')
 
 FLAGS = tf.app.flags.FLAGS
@@ -218,7 +218,7 @@ class DQN(object):
     def setup(self):
         self._build_Q_network()
         self._build_training_graph()
-        if os.environ["TF_THREADS"]:
+        if "TF_THREADS" in os.environ:
             print("Using {} threads...".format(os.environ["TF_THREADS"]))
             self.session = tf.Session(config=tf.ConfigProto(
                            intra_op_parallelism_threads=int(os.environ["TF_THREADS"])))
