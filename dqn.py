@@ -27,7 +27,7 @@ tf.app.flags.DEFINE_float('learning_rate', 0.000025, 'The learning rate used by 
 tf.app.flags.DEFINE_float('gradient_momentum', 0.95, 'Gradient momentum used by RMSProp.')
 tf.app.flags.DEFINE_float('squared_gradient_momentum', 0.95, 'Squared gradient (denominator) momentum used by RMSProp.')
 tf.app.flags.DEFINE_float('min_squared_gradient', 0.01, 'Constant added to the squared gradient in the denominator of the RMSProp update.')
-tf.app.flags.DEFINE_float('initial_exploration', 1.0, 'Initial value of the epsilon in the epsilon-greedy exploration.')
+tf.app.flags.DEFINE_float('initial_exploration', 0.1, 'Initial value of the epsilon in the epsilon-greedy exploration.')
 tf.app.flags.DEFINE_float('final_exploration', 0.1, 'Final value of the epsilon in the epsilon-greedy exploration.')
 tf.app.flags.DEFINE_integer('final_exploration_frame', 100000, 'The number of frames over which the initial value of epsilon is linearly annealed to its final value.')
 tf.app.flags.DEFINE_integer('replay_start_size', 50, 'A uniform random policy is run for this number of frames before learning starts and the resulting experience is used to populate the replay memory.')
