@@ -57,7 +57,8 @@ class DQN(object):
         transposed_input = tf.transpose(inputs, [0, 2, 3, 1])
         conv1 = tflearn.conv_2d(transposed_input, 32, 8, strides=4, activation='relu')
         conv2 = tflearn.conv_2d(conv1, 64, 4, strides=2, activation='relu')
-        flatten = tflearn.fully_connected(conv2, 256, activation='relu')
+        conv3 = tflearn.conv_2d(conv2, 64, 3, strides=1, activation='relu')
+        flatten = tflearn.fully_connected(conv2, 512, activation='relu')
         softmax = tflearn.fully_connected(flatten, self.num_actions)
         argmax = tf.argmax(softmax, dimension=1)
         return inputs, softmax, tf.trainable_variables()[trainable_params_start:], argmax
