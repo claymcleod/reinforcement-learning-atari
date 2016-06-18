@@ -17,20 +17,20 @@ from skimage.transform import resize
 
 # Extended data table 1, appendix
 tf.app.flags.DEFINE_integer('minibatch_size', 32, 'Number of training cases over which gradient descent (SGD) update is computed.')
-tf.app.flags.DEFINE_integer('replay_memory_size', 80000, 'SGD updates are sampled from this number of most recent frames.')
+tf.app.flags.DEFINE_integer('replay_memory_size', 2000, 'SGD updates are sampled from this number of most recent frames.')
 tf.app.flags.DEFINE_integer('agent_history_length', 4, 'The number of most recent frames experienced by the agent that are given as input to the Q network.')
-tf.app.flags.DEFINE_integer('target_network_update_frequency', 10000, 'The frequency (measured in the number of parameter updates) with which the target network is updated (this corresponds to the parameter C from Algorithm 1.)')
+tf.app.flags.DEFINE_integer('target_network_update_frequency', 200, 'The frequency (measured in the number of parameter updates) with which the target network is updated (this corresponds to the parameter C from Algorithm 1.)')
 tf.app.flags.DEFINE_float('discount_factor', 0.99, 'Discount factor gamma used in the Q-learning update.')
 tf.app.flags.DEFINE_integer('action_repeat', 4, 'Repeat each acton selected by the agent this many times. Using a value of 4 results in the agent seeing only every 4th input frame.')
 tf.app.flags.DEFINE_integer('update_frequency', 4, 'The number of actions selected by the agent between successive SGD updates. Using a value of 4 results in the agent selecting 4 actions between each pair of successive updates.')
-tf.app.flags.DEFINE_float('learning_rate', 0.000025, 'The learning rate used by RMSProp.')
+tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'The learning rate used by RMSProp.')
 tf.app.flags.DEFINE_float('gradient_momentum', 0.95, 'Gradient momentum used by RMSProp.')
 tf.app.flags.DEFINE_float('squared_gradient_momentum', 0.95, 'Squared gradient (denominator) momentum used by RMSProp.')
 tf.app.flags.DEFINE_float('min_squared_gradient', 0.01, 'Constant added to the squared gradient in the denominator of the RMSProp update.')
-tf.app.flags.DEFINE_float('initial_exploration', 1.0, 'Initial value of the epsilon in the epsilon-greedy exploration.')
+tf.app.flags.DEFINE_float('initial_exploration', 0.1, 'Initial value of the epsilon in the epsilon-greedy exploration.')
 tf.app.flags.DEFINE_float('final_exploration', 0.1, 'Final value of the epsilon in the epsilon-greedy exploration.')
-tf.app.flags.DEFINE_integer('final_exploration_frame', 50000, 'The number of frames over which the initial value of epsilon is linearly annealed to its final value.')
-tf.app.flags.DEFINE_integer('replay_start_size', 25000, 'A uniform random policy is run for this number of frames before learning starts and the resulting experience is used to populate the replay memory.')
+tf.app.flags.DEFINE_integer('final_exploration_frame', 100000, 'The number of frames over which the initial value of epsilon is linearly annealed to its final value.')
+tf.app.flags.DEFINE_integer('replay_start_size', 2000, 'A uniform random policy is run for this number of frames before learning starts and the resulting experience is used to populate the replay memory.')
 tf.app.flags.DEFINE_integer('no_op_max', 30, 'Maximum number of "do nothing" actions to be performed by the agent at the start of an epsiode.')
 
 FLAGS = tf.app.flags.FLAGS
@@ -57,31 +57,39 @@ class DQN(object):
         transposed_input = tf.transpose(inputs, [0, 2, 3, 1])
         conv1 = tflearn.conv_2d(transposed_input, 32, 8, strides=4, activation='relu')
         conv2 = tflearn.conv_2d(conv1, 64, 4, strides=2, activation='relu')
-        conv3 = tflearn.conv_2d(conv2, 64, 3, strides=1, activation='relu')
+        conv3 = tflearn.conv_2d(conv2, 128, 3, strides=1, activation='relu')
         flatten = tflearn.fully_connected(conv2, 512, activation='relu')
         softmax = tflearn.fully_connected(flatten, self.num_actions)
+        softmax = tf.div(softmax, tf.reduce_sum(softmax, reduction_indices=1))
         argmax = tf.argmax(softmax, dimension=1)
         return inputs, softmax, tf.trainable_variables()[trainable_params_start:], argmax
 
     def get_q_for_state(self, state):
         assert self.session != None, "Must initialize the DQN using .setup()!"
-        return self.session.run([self.q_values], feed_dict={self.q_inputs: [state]})[0]
+        q_vals = self.session.run([self.q_values], feed_dict={self.q_input: [state]})[0]
+        return q_vals[0]
 
     def get_action_for_state(self, state):
         assert self.session != None, "Must initialize the DQN using .setup()!"
-        return self.session.run(self.q_action, feed_dict={self.q_input: [state]})[0]
+        q_vals = self.get_q_for_state(state)
+        while True:
+            for i in range(self.num_actions):
+                if random() < q_vals[i]:
+                    return i
+        #return self.session.run(self.q_action, feed_dict={self.q_input: [state]})[0]
 
-    def _build_training_graph(self):
+    def _build_training_graph(self, double_q=True):
         self.r_t = tf.placeholder(tf.float32)
+        self.last_reward = tf.placeholder(tf.float32)
         self.a_t_selected = tf.placeholder(tf.float32, [None, self.num_actions])
         self.q_input, self.q_values, self.q_params, self.q_action = self._build_Q_network()
         self.qt_input, self.qt_values, self.qt_params, _ = self._build_Q_network()
         self.update_target_params = [self.qt_params[i].assign(self.q_params[i]) \
                                      for i in range(len(self.qt_params))]
-        self.actor_fn = self.r_t + tf.mul(FLAGS.discount_factor, self.qt_values)
-        selected_a_q = tf.reduce_sum(tf.mul(self.q_values, self.a_t_selected), reduction_indices=1)
-        selected_a_actor = tf.reduce_sum(tf.mul(self.actor_fn, self.a_t_selected), reduction_indices=1)
-        self.cost_fn = tflearn.mean_square(selected_a_q, selected_a_actor)
+        self.actor_fn = tf.mul(tf.pow(0.99, self.last_reward), self.r_t + tf.mul(FLAGS.discount_factor, self.qt_values))
+        self.selected_a_q = tf.reduce_sum(tf.mul(self.q_values, self.a_t_selected), reduction_indices=1)
+        self.selected_a_actor = tf.reduce_sum(tf.mul(self.actor_fn, self.a_t_selected), reduction_indices=1)
+        self.cost_fn = tflearn.mean_square(self.selected_a_q, self.selected_a_actor)
         optimizer = tf.train.RMSPropOptimizer(FLAGS.learning_rate, momentum=FLAGS.gradient_momentum)
         self.grad_fn = optimizer.minimize(self.cost_fn, var_list=self.q_params)
 
@@ -124,20 +132,23 @@ class DQN(object):
 
         return s_t, reward_t, s_t_plus_one, done
 
-    def _get_cost(self, s_t, r_t, s_t1, a_t_selected):
-        return self.cost_fn.eval(session=self.session, feed_dict={
+    def _get_cost(self, s_t, r_t, s_t1, a_t_selected, last_reward):
+        [cost, selected_a_q, selected_a_actor] = self.session.run([self.cost_fn, self.selected_a_q, self.selected_a_actor], feed_dict={
             self.q_input: [s_t],
             self.r_t: r_t,
             self.qt_input: [s_t1],
-            self.a_t_selected: [a_t_selected]
+            self.a_t_selected: [a_t_selected],
+            self.last_reward: [last_reward]
         })
+        return cost
 
-    def _update_q_gradients(self, s_t, r_t, s_t1, a_t_selected):
+    def _update_q_gradients(self, s_t, r_t, s_t1, a_t_selected, last_reward):
         self.grad_fn.run(session=self.session, feed_dict={
             self.q_input: [s_t],
             self.r_t: r_t,
             self.qt_input: [s_t1],
-            self.a_t_selected: [a_t_selected]
+            self.a_t_selected: [a_t_selected],
+            self.last_reward: [last_reward]
         })
 
     def _update_target_network(self):
@@ -154,27 +165,29 @@ class DQN(object):
             self.state_buffer.append(x_t)
         return s_t
 
-    def _add_memory(self, s_t, r_t, s_t1, a_t_selected):
+    def _add_memory(self, s_t, r_t, s_t1, a_t_selected, last_reward):
         if len(self.replay_memory) >= FLAGS.replay_memory_size:
             self.replay_memory.popleft()
 
-        self.replay_memory.append((s_t, r_t, s_t1, a_t_selected))
+        self.replay_memory.append((s_t, r_t, s_t1, a_t_selected, last_reward))
 
     def _perform_memory_replay(self):
         s_t_all = []
         r_t_all = []
         s_t1_all = []
         a_t_selected_all = []
+        last_reward_all = []
 
         for i in range(FLAGS.minibatch_size):
             replay_index = randint(0, len(self.replay_memory)-1) # Never pick last memory to simplify math
-            (s_t, r_t, s_t1, a_t_selected) = self.replay_memory[replay_index]
+            s_t, r_t, s_t1, a_t_selected, last_reward = self.replay_memory[replay_index]
             s_t_all.append(s_t)
             r_t_all.append(r_t)
             s_t1_all.append(s_t1)
             a_t_selected_all.append(a_t_selected)
+            last_reward_all.append(last_reward)
 
-        self._update_q_gradients(np.array(s_t_all)[0], np.array(r_t_all)[0], np.array(s_t1_all)[0], np.array(a_t_selected_all)[0])
+        self._update_q_gradients(np.array(s_t_all)[0], np.array(r_t_all)[0], np.array(s_t1_all)[0], np.array(a_t_selected_all)[0], last_reward_all[0])
 
     def _new_episode(self, frames, verbose=True, render=True):
         s_t = self._get_initial_state()
@@ -184,6 +197,7 @@ class DQN(object):
         score = 0.0
         a_t = 0
         no_ops = 0
+        last_reward = 0
 
         while not done:
             if iteration % FLAGS.action_repeat == 0:
@@ -194,19 +208,24 @@ class DQN(object):
                     no_ops = 0
 
             s_t, r_t, s_t1, done = self._step(a_t)
+            if r_t > 0:
+                last_reward = 0
+            else:
+                last_reward += 1
 
             a_t_selected = np.zeros([self.num_actions])
             a_t_selected[a_t] = 1
 
+            self.get_q_for_state(s_t)
             if verbose:
-                cost += self._get_cost(s_t, r_t, s_t1, a_t_selected)
+                cost += self._get_cost(s_t, r_t, s_t1, a_t_selected, last_reward)
 
             if render:
                 self.env.render()
 
             score += r_t
             iteration += 1
-            self._add_memory(s_t, r_t, s_t1, a_t_selected)
+            self._add_memory(s_t, r_t, s_t1, a_t_selected, last_reward)
             if iteration > FLAGS.replay_start_size:
                 self._perform_memory_replay()
                 if iteration % FLAGS.target_network_update_frequency == 0:

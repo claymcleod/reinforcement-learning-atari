@@ -1,16 +1,16 @@
 from skimage.color import rgb2gray
 from skimage.transform import resize
 
-TEST_ENV_NAME = "Breakout-v0"
+TEST_ENV_NAME = "MsPacman-v0"
 
 def dimensions_for_env(env_name):
     if env_name == "MsPacman-v0":
         return {
             'resize_to': (118, 90),
             'network_in_x': 90,
-            'network_in_y': 90,
+            'network_in_y': 96,
             'start': 0,
-            'stop': 90
+            'stop': 96
         }
     elif env_name == "SpaceInvaders-v0":
         return {
